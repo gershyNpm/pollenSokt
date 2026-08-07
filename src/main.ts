@@ -13,7 +13,7 @@ export type SoktPollenDef = {
   },
   sokt: WebSocket & { buff: SoktEvt[], evtPrm: PromiseLater<'active' | 'finish'> }
 };
-export class SoktPollen extends Pollen<SoktPollenDef> {
+export class PollenSokt extends Pollen<SoktPollenDef> {
   
   // Can call sokt scripts
   
