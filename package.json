@@ -1,6 +1,6 @@
 {
   "name": "@gershy/pollen-sokt",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "author": "Gershom Maes",
   "description": "TODO",
   "keywords": [
@@ -37,7 +37,7 @@
     }
   },
   "dependencies": {
-    "@gershy/pollen": "^0.0.4",
+    "@gershy/pollen": "^0.0.5",
     "@gershy/util-codec-parse": "^0.0.22"
   }
 }
