@@ -1,6 +1,6 @@
 {
   "name": "@gershy/pollen-sokt",
-  "version": "0.0.1",
+  "version": "0.0.6",
   "author": "Gershom Maes",
   "description": "TODO",
   "keywords": [
@@ -18,10 +18,10 @@
   "files": [
     "cmp"
   ],
-  "dependencies": {},
   "devDependencies": {
-    "@types/node": "^24.10.1",
-    "@gershy/entry": "^0.0.25"
+    "@gershy/entry": "^0.0.25",
+    "@gershy/util-http": "^0.0.23",
+    "@types/node": "^24.10.1"
   },
   "peerDependencies": {
     "@gershy/clearing": "^0.0.54"
@@ -35,5 +35,9 @@
       "import": "./cmp/esm/main.js",
       "require": "./cmp/cjs/main.js"
     }
+  },
+  "dependencies": {
+    "@gershy/pollen": "^0.0.3",
+    "@gershy/util-codec-parse": "^0.0.22"
   }
 }
