@@ -32,6 +32,7 @@ export class PollenSokt extends Pollen<SoktPollenDef> {
     
     const url = `${port === 443 ? 'wss' : 'ws'}://${addr}${path.length ? '/' : ''}${path.join('/')}`;
     const sokt = Object.assign(new WebSocket(url), {
+      info: { url },
       buff: [] as SoktEvt[],
       evtPrm: Promise[cl.later]<'active' | 'finish'>()
     });
@@ -64,7 +65,7 @@ export class PollenSokt extends Pollen<SoktPollenDef> {
       cause.catch?.();
       
       const err = Error('sokt event reject')
-        [cl.mod]({ cause, sokt: sokt[cl.slice]([ 'url', 'binaryType', 'readyState' ]) })
+        [cl.mod]({ cause, sokt: sokt[cl.slice]([ 'binaryType', 'info' ]) })
         [cl.suppress]();
       
       sokt.buff.push({ t: 'reject', err });
@@ -103,7 +104,10 @@ export class PollenSokt extends Pollen<SoktPollenDef> {
     
     
   }
-  public async send(args: Json) {
+  public async fly(args: Json) {
+    
+    // Consider: rename fly/notice -> pistil/stamen?
+    
     args = JSON.stringify(args);
     const { sokt } = await this.getDef();
     sokt.send(args)
@@ -128,6 +132,7 @@ export class PollenSokt extends Pollen<SoktPollenDef> {
     
   }
   
-  protected getJsfnArgs() { return super.getJsfnArgs(); }
+  protected getJsfnHoist() { return `${import.meta.filename}::{${this.constructor.name}}` as const; }
+  protected getJsfnInp() { return {}; }
   
 };
