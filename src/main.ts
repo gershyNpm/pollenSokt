@@ -1,7 +1,21 @@
 import '@gershy/clearing';
 import { Pollen, type PollenInp } from '@gershy/pollen';
-import type { HttpMethod } from '@gershy/util-http';
 import codecParse from '@gershy/util-codec-parse';
+import type { HttpMethod } from '@gershy/util-http';
+
+// type Soktttt = WebSocket;
+export type Sokt = { // Custom bare-minimum socket client type, to avoid dealing with the `global.WebSocket` / `require('undici').WebSocket` duality
+  // binaryType: 'blob' | 'arraybuffer',
+  close: (code?: number, reason?: string) => void,
+  send: (msg: string) => void,
+  addEventListener: {
+    (type: 'message', cb: (msg: { data: string                  }) => void): void,
+    (type: 'close',   cb: (                                      ) => void): void,
+    (type: 'error',   cb: (err: { message: string, error: Error }) => void): void,
+    (type: 'open',    cb: (                                      ) => void): void,
+  }
+};
+export type SoktCls = { new (url: string): Sokt };
 
 export type SoktEvt = { t: 'accept', val: Json } | { t: 'reject', err: any };
 export type SoktPollenDef = {
@@ -11,13 +25,18 @@ export type SoktPollenDef = {
     path?: string[],
     method?: HttpMethod
   },
-  sokt: WebSocket & { buff: SoktEvt[], evtPrm: PromiseLater<'active' | 'finish'> }
+  sokt: Sokt & { buff: SoktEvt[], evtPrm: PromiseLater<'active' | 'finish'> }
 };
 export class PollenSokt extends Pollen<SoktPollenDef> {
   
-  // Can call sokt scripts
+  // TODO: avoid generator?? Sequential messages / errors / etc can prolly be a LL of promises????
   
-  constructor(inp: PollenInp<'domain' | 'awsApiGateway' | 'awsCloudfrontDistribution'>) { super(inp); }
+  // Can call sokt scripts
+  protected SoktCls: { new (url: string): Sokt }; // TODO: can't be jsfn-serialized
+  constructor(inp: PollenInp<'domain' | 'awsApiGateway' | 'awsCloudfrontDistribution'> & { SoktCls?: SoktCls }) {
+    super(inp);
+    this.SoktCls = inp.SoktCls ?? global.WebSocket;
+  }
   
   protected async sanitizeDef(def: unknown) {
     
@@ -31,19 +50,31 @@ export class PollenSokt extends Pollen<SoktPollenDef> {
     }} as const, def);
     
     const url = `${port === 443 ? 'wss' : 'ws'}://${addr}${path.length ? '/' : ''}${path.join('/')}`;
-    const sokt = Object.assign(new WebSocket(url), {
+    
+    const { SoktCls } = this;
+    const sokt: SoktPollenDef['sokt'] = Object.assign(new SoktCls(url), {
+      
       info: { url },
       buff: [] as SoktEvt[],
       evtPrm: Promise[cl.later]<'active' | 'finish'>()
+      
     });
     
     const firstErrPrm = Promise[cl.later]<Error>();
     firstErrPrm.catch(() => { /* must never throw */ });
     
-    const update = (term: 'active' | 'finish') => {
+    let finished = false;
+    const update = (term: 'active' | 'finish', d?: any) => {
+      
+      if (finished) return console.log('UPDATE AFTER FINISHED??', term, d); // TODO: remove `console.log`
+      
       const prevPrm = sokt.evtPrm;
-      sokt.evtPrm = Promise[cl.later]();
+      
+      if (term === 'finish') finished = true;
+      else                   sokt.evtPrm = Promise[cl.later]();
+      
       prevPrm.resolve(term);
+      
     };
     
     sokt.addEventListener('message', evt => {
@@ -51,7 +82,7 @@ export class PollenSokt extends Pollen<SoktPollenDef> {
       try              { sokt.buff.push({ t: 'accept', val: JSON.parse(evt.data) }); }
       catch (err: any) { sokt.buff.push({ t: 'reject', err: err[cl.mod]({ evt }) }); }
       
-      update('active');
+      update('active', evt);
       
     });
     sokt.addEventListener('close', () => {
@@ -60,23 +91,17 @@ export class PollenSokt extends Pollen<SoktPollenDef> {
       update('finish');
       
     });
-    sokt.addEventListener('error', (cause: any) => {
-      
-      cause.catch?.();
-      
-      const err = Error('sokt event reject')
-        [cl.mod]({ cause, sokt: sokt[cl.slice]([ 'binaryType', 'info' ]) })
-        [cl.suppress]();
+    sokt.addEventListener('error', ({ message, error: err }) => {
       
       sokt.buff.push({ t: 'reject', err });
-      update('active');
+      update('active', err);
       
       firstErrPrm.reject(err);
       
     });
     
     // Wait for the sokt to open - rejects if an error occurs before the sokt is open
-    await new Promise((rsv, rjc) => {
+    await new Promise<void>((rsv, rjc) => {
       sokt.addEventListener('open', rsv);
       firstErrPrm.catch(err => rjc(err));
     });
@@ -85,40 +110,33 @@ export class PollenSokt extends Pollen<SoktPollenDef> {
       addr,
       port,
       http: { path },
-      sokt: sokt as SoktPollenDef['sokt'] // Needed for declaration typing
+      sokt: sokt as SoktPollenDef['sokt'] // This type is needed for declaration typing... ouch.
     };
     
   }
   
-  public async finish() {
+  public async cancel() {
     
     const { defPrm } = this;
     if (!defPrm) return;
-    
     this.defPrm = null;
-      
+    
     const { sokt } = await defPrm;
     const closedPrm = (async () => { while (true) if (await sokt.evtPrm === 'finish') break; })(); // Resolve after seeing "finish" event
     sokt.close();
     await closedPrm;
     
-    
   }
-  public async fly(args: Json) {
-    
-    // Consider: rename fly/notice -> pistil/stamen?
-    
-    args = JSON.stringify(args);
-    const { sokt } = await this.getDef();
-    sokt.send(args)
-  }
-  public async * notice() {
+  public async tell(args: Json) { (await this.getDef()).sokt.send(JSON.stringify(args)); }
+  public async fly(args: Json) { return this.tell(args); }
+  public async * hear() {
     
     const { sokt } = await this.getDef();
     
     while (true) {
       
       // Drain all events
+      
       while (sokt.buff.length) {
         const v = sokt.buff.shift()!;
         if (v.t === 'reject') throw Error('sokt reject')[cl.mod]({ cause: v.err, unprocessedEvents: sokt.buff });

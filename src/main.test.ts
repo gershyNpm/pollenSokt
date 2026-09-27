@@ -1,4 +1,3 @@
-import './main.ts';
 import { testRunner } from '../build/utils.test.ts';
 import './main.ts';
 import { entry } from '@gershy/entry';

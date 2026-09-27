@@ -207,7 +207,7 @@ export const testRunner = async <Inp = null>(inp: TestRunnerInp<Inp>) => {
       
     });
     
-    logger.log({ $$: 'result', completedTests: numRan, totalTests: cases.length });
+    logger.log({ $$: 'result', invokedTests: numRan, totalTests: cases.length });
     
   });
   
