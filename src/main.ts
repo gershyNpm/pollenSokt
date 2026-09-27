@@ -122,9 +122,9 @@ export class PollenSokt extends Pollen<SoktPollenDef> {
     this.defPrm = null;
     
     const { sokt } = await defPrm;
-    const closedPrm = (async () => { while (true) if (await sokt.evtPrm === 'finish') break; })(); // Resolve after seeing "finish" event
+    const finishPrm = (async () => { while (true) if (await sokt.evtPrm === 'finish') break; })(); // Resolve after seeing "finish" event
     sokt.close();
-    await closedPrm;
+    await finishPrm;
     
   }
   public async tell(args: Json) { (await this.getDef()).sokt.send(JSON.stringify(args)); }
